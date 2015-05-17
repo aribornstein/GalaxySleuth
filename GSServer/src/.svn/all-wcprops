@@ -1,0 +1,77 @@
+K 25
+svn:wc:ra_dav:version-url
+V 36
+/svn/cairn/!svn/ver/184/GSServer/src
+END
+PlayGame.java
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/cairn/!svn/ver/113/GSServer/src/PlayGame.java
+END
+GSServer.java
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/cairn/!svn/ver/49/GSServer/src/GSServer.java
+END
+StateTimer.java
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/cairn/!svn/ver/106/GSServer/src/StateTimer.java
+END
+Suggest.java
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/cairn/!svn/ver/122/GSServer/src/Suggest.java
+END
+SController.java
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/cairn/!svn/ver/184/GSServer/src/SController.java
+END
+Move.java
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/cairn/!svn/ver/174/GSServer/src/Move.java
+END
+JoinGame.java
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/cairn/!svn/ver/100/GSServer/src/JoinGame.java
+END
+GameState.java
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/cairn/!svn/ver/113/GSServer/src/GameState.java
+END
+InitialState.java
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/cairn/!svn/ver/49/GSServer/src/InitialState.java
+END
+ClientHandler.java
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/cairn/!svn/ver/118/GSServer/src/ClientHandler.java
+END
+CreateGame.java
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/cairn/!svn/ver/100/GSServer/src/CreateGame.java
+END
+Distribute.java
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/cairn/!svn/ver/174/GSServer/src/Distribute.java
+END

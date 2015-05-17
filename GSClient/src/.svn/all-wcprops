@@ -1,0 +1,59 @@
+K 25
+svn:wc:ra_dav:version-url
+V 36
+/svn/cairn/!svn/ver/188/GSClient/src
+END
+StartGameDialogue.java
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/cairn/!svn/ver/174/GSClient/src/StartGameDialogue.java
+END
+ChatWidget.java
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/cairn/!svn/ver/183/GSClient/src/ChatWidget.java
+END
+AccusationDialogue.java
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/cairn/!svn/ver/175/GSClient/src/AccusationDialogue.java
+END
+CController.java
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/cairn/!svn/ver/188/GSClient/src/CController.java
+END
+GSClient.java
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/cairn/!svn/ver/183/GSClient/src/GSClient.java
+END
+GameScreen.java
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/cairn/!svn/ver/183/GSClient/src/GameScreen.java
+END
+RefutationDialogue.java
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/cairn/!svn/ver/159/GSClient/src/RefutationDialogue.java
+END
+LoadingScreen.java
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/cairn/!svn/ver/180/GSClient/src/LoadingScreen.java
+END
+WinScreen.java
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/cairn/!svn/ver/176/GSClient/src/WinScreen.java
+END

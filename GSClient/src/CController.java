@@ -1,0 +1,543 @@
+import java.io.*;
+import java.net.*;
+import java.util.*;
+
+import javax.swing.JButton;
+/**
+ * This is the "brains" of the "Galaxy Sleuth client" also known as a simplistic
+ * chat client. It maintains client state and the TCP connection to the server.
+ * It utilizes a helper (CControllerHelper) thread to listen for incoming
+ * messages from the TCP connection. The socket's input and output streams are
+ * encapsulated within Object Streams so that we can pass objects back and forth
+ * over the TCP connection. Refer to the Envelope class for documentation on the
+ * disambiguation of received objects.
+ * 
+ * @author Thomas Kelliher kelliher@goucher.edu
+ * @version 2010.1018
+ */
+public class CController {
+
+    /**
+     * Keeping track of client state is trivial --- we're either logged in or
+     * we're not.
+     */
+    public boolean loggedIn = false;
+    /**
+     * The UI controlled by the controller.
+     */
+    public GSClient theApplet;
+    /**
+     * The fully qualified domain name of the server.
+     */
+    public String serverName;
+    /*
+     * The socket connection to the server.
+     */
+    public Socket socket;
+    /**
+     * The object-friendly input and output streams connecting the controller to
+     * the server.
+     */
+    public ObjectOutputStream oos;
+    public ObjectInputStream ois;
+    /**
+     * The thread which will listen for objects sent to the controller by the
+     * server.
+     */
+    public CControllerHelper serverListener;
+   
+    public Game myGame = new Game();
+    
+    public List<String> remainingCharacters;
+
+    public int spin;
+    
+    //used to determine which user this client is when the game state is sent to them
+    public String myUserName;
+    
+    public ArrayList<Card> refutedCardArray = new ArrayList<Card>();
+
+    public CController(GSClient theApplet, String serverName) {
+	this.theApplet = theApplet;
+	this.serverName = serverName;
+	
+
+	try {
+		//System.out.println("Trying to login...");
+		this.login();
+	    } catch (IOException ev) {
+		System.out.println(ev.getMessage()
+			+ ": In logInOut button handler.");
+	    }
+	    System.out.println("CController Initialized");
+    }
+    	
+
+    /**
+     * Attempt to login to the server by sending a LOGIN message. If successful,
+     * the server will respond with a null LOGIN message. We aren't logged in
+     * until we receive the server response.
+     * 
+     * @param name
+     *                The username to be associated with this client.
+     * @throws IOException
+     *                 I decided to throw an IOException if the client is
+     *                 already logged in. Cheesy, I know.
+     */
+
+    public void login() throws IOException {
+
+	if (loggedIn)
+	    throw new IOException("Already logged in.");
+
+	try {
+	    /**
+	     * Attempt to connect to the server and establish input and output
+	     * object streams. Create the listener for incoming objects and
+	     * start it.
+	     */
+	    socket = new Socket(serverName, Constants.SERVER_PORT);
+	    oos = new ObjectOutputStream(socket.getOutputStream());
+	    ois = new ObjectInputStream(socket.getInputStream());
+	    System.out.println("Connection Initialized");
+	    /**
+	     * Create the Envelope use to encapsulate the message. Write the
+	     * Envelope to the server. Flush the connection to ensure that the
+	     * TCP layer doesn't delay the object transmission by buffering the
+	     * data. This is error-prone --- writeObject() and flush() ought to
+	     * be performed atomically automatically for this application.
+	     */
+	    Envelope login = new Envelope(MsgType.LOGIN, null);
+	    oos.writeObject(login);
+	    oos.flush();
+	    
+	    Envelope f = (Envelope) ois.readObject();
+	    if ((Boolean)f.getMsg()== true){
+			theApplet.firstPlayer = true;
+			//following two lines copied from login
+			loggedIn = true;
+		    //theApplet.status.setText("Connected");
+			System.out.println("Received firstPlayer=True");
+		} else if((Boolean)f.getMsg() == false){
+			theApplet.firstPlayer = false;
+			loggedIn = true;
+			System.out.println("Received  firstPlayer=False");
+		} else{
+			System.out.println("Received ERRONEOUS FIRST_PLAYER message at CController");
+		}
+	    
+	    Envelope getCharacters = new Envelope(MsgType.GET_CHARACTERS, null);
+	    System.out.println("Sent GET_CHARACTERS message");
+	    oos.writeObject(getCharacters);
+	    oos.flush();	    
+	    
+	    Envelope g = (Envelope) ois.readObject();	    
+	    remainingCharacters = (List<String>) g.getMsg();
+	    System.out.println("Received remaining Characters envelope containing: "+remainingCharacters);
+	    
+	    
+	} catch (IOException e) {
+	    System.out.println(e.getMessage() + ": In CController.login().");
+	} catch (ClassNotFoundException f){
+		System.out.println("Error with ois.readOject in CController.login()");
+	}
+	
+	serverListener = new CControllerHelper(this, ois);
+    serverListener.start();
+    
+    }
+
+    /**
+     * Attempt to logout from the server by sending a LOGOUT message. If
+     * successful, the server will respond with a LOGOUT message. We aren't
+     * logged out until we receive that response.
+     * 
+     * @throws IOException
+     *                 How I decided to deal with a logout attempt while already
+     *                 logged out. Again, cheesy.
+     */
+    public void logout() throws IOException {
+	if (!loggedIn)
+	    throw new IOException("Already logged out.");
+
+	try {
+	    /**
+	     * Ditto. (See above.)
+	     */
+	    Envelope e = new Envelope(MsgType.LOGOUT, null);
+	    oos.writeObject(e);
+	    oos.flush();
+
+	} catch (IOException e) {
+	    System.out.println(e.getMessage() + ": In CController.logout()");
+	}
+    }
+
+    /**
+     * Attempt to send a chat message.
+     * 
+     * @param msg
+     *                The message to broadcast to the chat clients.
+     * @throws IOException
+     *                 Our cheesy way of dealing with being logged out when the
+     *                 user attempts to send a message. Perhaps we could have
+     *                 done something more enlightened? Disabling the send
+     *                 button, perhaps?
+     */
+    public void sendMesg(String msg) throws IOException {
+	if (!loggedIn)
+	    throw new IOException("Not logged in.");
+		
+	try {
+	    /**
+	     * Ditto. Again.
+	     */
+		System.out.println("Controller received: '" + msg + "'");
+	    Envelope e = new Envelope(MsgType.CHAT_MSG, msg);
+	    oos.writeObject(e);
+	    oos.flush();
+	} catch (IOException e) {
+	    System.out.println(e.getMessage() + ": In CController.sendMesg()");
+	    receiveEnvelope(new Envelope(MsgType.LOGOUT, null));
+	}
+    }
+/**
+ * Send an envelope to the server. This will be used to send Updates (for board), Accusations, Suggestions etc.
+ * @param e
+ *               envelope which is to be sent
+ */
+    public void sendEnvelope(Envelope
+    		e){
+    try{
+    	oos.writeObject(e);
+    	oos.flush();
+    } catch (IOException ex){}
+    }
+    /**
+     * Envelope objects received from the server by our helper thread are passed
+     * to this method for parsing and action. If we receive an unrecognized
+     * object, we ignore it. Ignorance may be bliss, but is probably not a smart
+     * choice here.
+     * 
+     * @param e
+     *                The object received from the server.
+     */
+    public void receiveEnvelope(Envelope e) {
+	switch (e.getMsgType()) {
+	/**
+	 * We received a chat message. Display it at the beginning (top) of the
+	 * received messages JTextArea.
+	 */
+	case CHAT_MSG:
+	    //theApplet.receivedMesgs.insert((String) e.getMsg(), 0);
+	    //send message to GSClient "update chat" method, which will pass it to GameScreen and then ChatWidget
+		System.out.println("Message leaving controller: " + (String) e.getMsg());
+		theApplet.updateChat((String) e.getMsg());
+		break;
+
+	/**
+	 * We're now officially logged in.
+	 */
+	case LOGIN:
+	    loggedIn = true;
+	    theApplet.status.setText("Connected");
+	    //theApplet.logInOut.setText("Create Game");
+	    System.out.println("Received LOGIN message at CController");
+	    break;
+	    
+
+	/**
+	 * We're logged out. Halt the helper thread and close down the server
+	 * connections.
+	 */
+	case LOGOUT:
+	    try {
+		loggedIn = false;
+		serverListener.halt();
+		oos.close();
+		ois.close();
+		socket.close();
+		//theApplet.status.setText("Logged out");
+		theApplet.logInOut.setText("Login");
+	    } catch (IOException ev) {
+		System.out.println(ev.getMessage()
+			+ ": In CController.receiveEnvelope()");
+	    }
+	    break;
+	    
+	case CHARACTER_LIST:
+				
+		remainingCharacters = (List<String>) e.getMsg();
+		System.out.println("Character List received by CController:"+ remainingCharacters.toString());
+		break;
+		
+	case PLAY_GAME:
+		
+		System.out.println("Received PlayGame message");
+		
+		
+		break;
+		
+	case GAME_OBJECT:
+		
+		System.out.println("Recieving GAME_OBJECT...");
+		//MasterGame is the game object that was just received from the server
+		Game masterGame = (Game) e.getMsg();
+		myGame = masterGame;
+		theApplet.setGameScreen();
+		theApplet.drawInitialTokens();
+		theApplet.dealCardsToScreen();
+		//System.out.println("Printing Game:");
+		//myGame.print();
+		
+		break;
+		
+	//Due to my terrible ad hoc design, this is where all turn init dhould take place	
+	case SPIN:		
+		
+		System.out.println("Spin message received...");
+		Integer spin = (Integer) e.getMsg();
+		this.spin = spin;
+		theApplet.updateSpin(spin);
+		sendEnvelope(new Envelope(MsgType.CHAT_MSG_ALL,myUserName +"'s turn is beginning"));
+		sendEnvelope(new Envelope(MsgType.CHAT_MSG_ALL,myUserName +" rolled a "+spin));
+		
+		theApplet.GUIActivated(true);
+		//Call method that lives on GSClient that takes a spin and then sets the boardwidget spin field to that spin
+		
+		//ROZZZZ!!!!!!! (This is not all stuff you need to do, some was for myself)
+		/*A few things need to happen here:
+		 * 		- The spinner needs to display the spin
+		 * 		- The Board needs to activated and ready to receive mouse clicks
+		 * 		- Once the right number of moves have been made OR a wormhole is clicked
+		 * 		a BOARD_UPDATE needs to be sent.
+		 * 		- If the user has not moved at all they may press the accuse button and make an accuation
+		 * 		- If after making a suggestion a user does not wish to accuse, they should press the End Turn
+		 * 		button which will then send an END_TURN envelope to the server.
+		 * 
+		 * 		Another Note:
+		 * 			Once the BOARD_UPDATE message is sent, the UI should activate the Accuse and Suggest buttons.
+		 * 				If the suggest button is clicked, send a SUGGESTION message with a list of three cards
+		 * 					-After the suggestion sequence, the End Turn button should be activated
+		 * 				If the accuse button is clicked, check if the accusation is true and then send an ACCUSATION 
+		 * 					message containing a bool
+		 * 
+		 * 				
+		 * 
+		 */		 
+		
+		
+		break;
+	case REFUTATION:
+		SuggestionHolder mySuggestion =(SuggestionHolder)e.getMsg();
+		
+		
+		
+		//if card exsits do this
+		System.out.println("Received Refutation message");
+		System.out.println("Suggestion cards: "+Arrays.toString(mySuggestion.suggestion));
+		
+		
+		String[] suggestionCards = getSuggestionCards(mySuggestion.suggestion, findMe().hand);
+		//System.out.println("The cards that will be sent to suggestion are:"+suggestionCards[0]+suggestionCards[1]+suggestionCards[2]);
+		System.out.println("suggestionCards: "+suggestionCards.toString());
+		if ( suggestionCards!=null)
+		{
+			
+			System.out.println("player has a card to refute with");
+		  		
+		  boolean isFinished = false;
+		  //create the refutation dialogue
+		  RefutationDialogue myRefutationDialogue = new RefutationDialogue();
+		  //System.out.println("The cards sent to suggestion were:"+suggestionCards[0]+suggestionCards[1]+suggestionCards[2]);
+		  myRefutationDialogue.init(suggestionCards);
+		  // while myRefutationDialogue is running stall
+		  while (!isFinished){isFinished = myRefutationDialogue.isFinished; }
+		  //for now just send back one the cards in the list 
+		  refutationHolder myRefutal = new refutationHolder(mySuggestion.suggestion,myRefutationDialogue.refutation);
+		  System.out.println("Sending Suggestion Helper message back to server");
+		  System.out.println("refutation: "+myRefutationDialogue.refutation.toString());
+		  Envelope myRefutation = new Envelope (MsgType.SUGGESTION_HELPER,myRefutal);
+		  sendEnvelope(myRefutation);// send the refutal back
+		}
+		//else send back an empty string in the a Refutation holder
+		else 
+		{
+		  refutationHolder myRefutal = new refutationHolder(mySuggestion.suggestion,"");
+	      Envelope myRefutation = new Envelope (MsgType.SUGGESTION_HELPER,myRefutal);
+		  sendEnvelope(myRefutation);// send the refutal back
+		}
+	break;
+	case WIN:
+		String userName =(String)e.getMsg();
+        System.out.println("The win screen should display");
+		WinScreen myWinScreen = new WinScreen(userName);
+		myWinScreen.pack();
+		myWinScreen.setVisible(true);
+		boolean isFinished =false;
+		//destroy all
+		// while myRefutationDialogue is running stall
+		while (!isFinished){isFinished = myWinScreen.isFinished; }
+		myWinScreen.dispose();		
+		//kill all here if u want
+		//do you want to play again
+        Envelope playAgain = new Envelope(MsgType.PLAY_AGAIN,null);
+        sendEnvelope(playAgain);
+    break;
+	case REMOVE:
+		theApplet.removeToken(findMe().token);
+		theApplet.gameScreen.boardPanel.revalidate();
+		
+		myGame = theApplet.gameScreen.boardPanel.myGame;    	
+		
+		//theApplet.GUIActivated(false);
+		findMe().token.xCoord = 100;
+		findMe().token.yCoord = 100;
+				
+	break;
+	case BOARD_UPDATE:
+		User updatedUser = (User) e.getMsg();
+		if(updatedUser.token.xCoord != 100){
+		for(int i = 0; i < myGame.userList.size(); i ++){
+			if(updatedUser.userName.equals(myGame.userList.get(i).userName)){				
+				System.out.println("Set new User object for userName: "+updatedUser.userName);
+				theApplet.updateBoard(updatedUser);
+				myGame.userList.set(i, updatedUser);
+				
+				
+			}
+		}		
+		}
+		break;
+	}
+    }
+
+
+	public String[] getRemainingCharacters(){
+		Envelope e = new Envelope(MsgType.GET_CHARACTERS,null);
+		//TEMPORARY!! STUB!!! MUST FIXXXXX
+		String[] s = {"Tina Time Traveler", "Sam Space Voyager", "Mona Moon Walker", "George Galaxy Wanderer", "Uhura Universalist", "Steve Stargazer"};
+		return s;
+	}
+	
+	public void sendSuggestion(String charCard, String weapCard, String planetCard)
+	{
+       // create an array to store the three cards
+		 String[] mySuggestion = {charCard, weapCard, planetCard};
+		//create envolope of all theses cards in an array 
+		Envelope suggestion = new Envelope(MsgType.SUGGESTION, mySuggestion);
+		System.out.println("Sending suggestion: "+mySuggestion.toString());
+		//send envolope 
+	    sendEnvelope(suggestion);
+	}
+	public void validateAccusation(String charCard, String weapCard, String planetCard)
+	{
+		boolean isAcusationValid= false;
+		System.out.println(myGame.solution[0].toString());
+		System.out.println(charCard);
+		System.out.println(myGame.solution[1].toString());
+		System.out.println(weapCard);
+		System.out.println(myGame.solution[2].toString());
+		System.out.println(planetCard);
+		if (charCard.equals(myGame.solution[0].toString()) && weapCard.equals(myGame.solution[1].toString()) && planetCard.equals(myGame.solution[2].toString()))
+		{
+			isAcusationValid=true;
+			System.out.println("Accusation should be true");
+		}
+	    Envelope isAcusationValidHolder = new Envelope(MsgType.ACCUSATION,isAcusationValid);
+	    sendEnvelope(isAcusationValidHolder);
+	}
+	// This method returns the user which correpsonds to this client
+	public User findMe(){
+		User result = new User();
+		for(int i = 0; i < myGame.userList.size(); i++ ){
+			if(myGame.userList.get(i).userName.equals(myUserName)){
+				result = myGame.userList.get(i);
+			}			
+		}
+		return result;
+	}
+	public String[] getSuggestionCards (String[] suggestion, ArrayList<Card> hand)
+	{
+		int counter =0;
+		String[] result=new String[3];
+		boolean cardExists = false;
+		for(int i=0; i<hand.size();i++)
+		{
+		  for(int j = 0; j < 3; j++)
+		  {			
+			System.out.printf("(%d, %d)",i,j);
+			if (hand.get(i).toString().equals(suggestion[j]))
+			{
+				System.out.println("getSuggestionCards found a card; counter = "+counter);
+				cardExists =true;				
+				result[counter] =suggestion[j];
+				System.out.println("i made it " + result[counter]+ " the correct answer should have been " + suggestion[j]  );
+				counter++;
+			}
+		
+		  }
+		 if (!cardExists) result = null;
+	}
+		return result;
+}
+}
+
+/**
+ * Helps CController by listening for objects sent by the server over the TCP
+ * connection, ois. All objects received are simply passed on to the server.
+ * 
+ * @author Thomas Kelliher kelliher@goucher.edu
+ * @version 2010.1018
+ */
+class CControllerHelper extends Thread {
+
+    private boolean running = false;
+    private CController controller;
+    private ObjectInputStream ois;
+
+    /**
+     * Constructor.
+     * 
+     * @param controller
+     *                The CController to which we send received Envelopes.
+     * @param ois
+     *                The ObjectInputStream that to which we listen.
+     */
+    public CControllerHelper(CController controller, ObjectInputStream ois) {
+	this.controller = controller;
+	this.ois = ois;
+	
+	
+	
+	
+    }
+
+    @Override
+	public void run() {
+	running = true;
+	while (running) {
+	    try {
+		/**
+		 * Block until we're sent an object or something nasty happens
+		 * to the underlying socket. If we receive an object, send it to
+		 * the controller.
+		 */
+		Envelope e = (Envelope) ois.readObject();
+		controller.receiveEnvelope(e);
+	    } catch (IOException e) {
+		System.out.println(e.getMessage()
+			+ ": In CControllerHelper.run().");
+		controller.receiveEnvelope(new Envelope(MsgType.LOGOUT, null));
+	    } catch (ClassNotFoundException e) {
+		System.out.println(e.getMessage()
+			+ ": In CControllerHelper.run().");
+	    }
+	}
+    }
+
+    public void halt() {
+	running = false;
+    }
+}
+
